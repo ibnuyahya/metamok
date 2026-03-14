@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metacog Engine 2026 - Side-by-Side Dashboard</title>
+    <title>Metacog Engine 2026 - Live Monitoring Edition</title>
     
     <!-- Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -97,6 +97,15 @@
         .custom-scroll::-webkit-scrollbar-track { background: transparent; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 10px; }
 
+        @keyframes pulse-live {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+        .live-indicator {
+            animation: pulse-live 2s infinite ease-in-out;
+        }
+
         @media print {
             .no-print { display: none !important; }
             body { background: white; padding: 0; }
@@ -116,7 +125,12 @@
                 </div>
                 <div>
                     <h1 class="text-xl font-extrabold tracking-tight text-gray-800 uppercase">Metacog Engine <span class="text-blue-500">2026</span></h1>
-                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dissertation Data Visualization Workspace</p>
+                    <div class="flex items-center gap-2">
+                        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dissertation Data Visualization Workspace</p>
+                        <div id="liveBadge" class="hidden items-center gap-1 bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full text-[8px] font-black tracking-tighter">
+                            <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full live-indicator"></span> LIVE SYNC
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="flex gap-2 no-print">
@@ -132,9 +146,14 @@
         <!-- Connection Bar -->
         <section class="clay-card p-5 no-print">
             <div class="flex flex-col md:flex-row gap-4">
-                <input type="text" id="sheetUrl" placeholder="Tempel URL GSheet Publik..." 
-                       class="flex-1 px-5 py-3 clay-inset focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm">
-                <button onclick="syncData()" id="btnSync" class="clay-button px-6 py-3 text-white font-bold bg-blue-500 flex items-center justify-center gap-2 text-sm uppercase">
+                <div class="flex-1 relative">
+                    <input type="text" id="sheetUrl" placeholder="Tempel URL GSheet Publik..." 
+                           class="w-full px-5 py-3 clay-inset focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm">
+                    <div id="syncTimer" class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] font-bold text-blue-400 hidden">
+                        Updating...
+                    </div>
+                </div>
+                <button onclick="syncData(false)" id="btnSync" class="clay-button px-6 py-3 text-white font-bold bg-blue-500 flex items-center justify-center gap-2 text-sm uppercase">
                     <i data-lucide="refresh-cw" class="w-4 h-4" id="syncIcon"></i> Sinkron
                 </button>
                 <button onclick="toggleManualInput()" class="clay-button px-4 py-3 text-blue-600 bg-white" title="Input Manual">
@@ -249,6 +268,10 @@
         let clusterData = { expert: [], learner: [], struggler: [] };
         let rawData = [];
         let viewMode = 'both';
+        
+        // Live Monitoring Variables
+        let autoSyncTimer = null;
+        let lastDataString = ""; 
 
         window.onload = () => lucide.createIcons();
 
@@ -263,31 +286,66 @@
             if (rawData.length > 0) refreshVisuals();
         }
 
-        async function syncData() {
+        // Modified syncData to handle silent updates
+        async function syncData(isSilent = false) {
             const url = document.getElementById('sheetUrl').value;
-            if (!url) return alert("Masukkan URL Google Sheets dulu ya!");
-            document.getElementById('syncIcon').classList.add('animate-spin');
+            if (!url) return;
+
+            if (!isSilent) {
+                document.getElementById('syncIcon').classList.add('animate-spin');
+            } else {
+                document.getElementById('syncTimer').classList.remove('hidden');
+            }
+
             try {
                 let csvUrl = url.includes('/edit') ? url.replace(/\/edit.*$/, '/export?format=csv') : url;
                 if (!csvUrl.includes('format=csv')) csvUrl += (csvUrl.includes('?') ? '&' : '?') + 'format=csv';
+                
+                // Add timestamp to prevent caching
+                csvUrl += `&t=${new Date().getTime()}`;
+
                 const response = await fetch(csvUrl);
                 const text = await response.text();
-                processCSV(text);
+                
+                // Check if data is actually new
+                if (text !== lastDataString) {
+                    lastDataString = text;
+                    processCSV(text);
+                    
+                    // First successful sync triggers Auto Monitoring
+                    if (!autoSyncTimer) {
+                        startAutoMonitoring();
+                    }
+                }
             } catch (err) {
-                alert("Gagal sinkron. Coba pakai data manual.");
+                if (!isSilent) alert("Gagal sinkron. Pastikan link GSheet sudah diset Publik.");
             } finally {
-                document.getElementById('syncIcon').classList.remove('animate-spin');
+                if (!isSilent) {
+                    document.getElementById('syncIcon').classList.remove('animate-spin');
+                }
+                document.getElementById('syncTimer').classList.add('hidden');
             }
+        }
+
+        function startAutoMonitoring() {
+            document.getElementById('liveBadge').classList.remove('hidden');
+            document.getElementById('liveBadge').classList.add('flex');
+            
+            // Check every 30 seconds
+            autoSyncTimer = setInterval(() => {
+                syncData(true);
+            }, 30000);
         }
 
         function processCSV(text) {
             const rows = text.trim().split('\n').slice(1);
-            rawData = rows.map(row => {
+            const newData = rows.map(row => {
                 const cols = row.split(',').map(c => c.replace(/"/g, '').trim());
                 return cols.slice(1, 7).map(val => scoreTextToNumber(val));
             }).filter(r => r.length === 6 && !r.includes(NaN));
 
-            if (rawData.length > 0) {
+            if (newData.length > 0) {
+                rawData = newData;
                 document.getElementById('placeholder').classList.add('hidden');
                 document.getElementById('radarChart').classList.remove('hidden');
                 runClustering();
@@ -382,7 +440,8 @@
                             display: true, position: 'bottom',
                             labels: { filter: (item) => item.text.includes('CENTROID'), font: { size: 10, weight: 'bold' } } 
                         }
-                    }
+                    },
+                    animation: { duration: 800 }
                 }
             });
         }
@@ -400,7 +459,7 @@
                 div.className = 'member-item p-3 clay-inset flex items-center justify-between text-[10px] font-bold';
                 div.innerHTML = `<span>Anggota ${i+1}</span> <i data-lucide="scan" class="w-3 h-3 opacity-20"></i>`;
                 div.onmouseenter = () => highlightIndividual(i);
-                div.onmouseleave = () => refreshVisuals();
+                div.onmouseleave = () => resetHighlight();
                 list.appendChild(div);
             });
             lucide.createIcons();
@@ -417,7 +476,6 @@
                     ds.borderColor = ds.borderColor.replace(/0\.\d+\)$/, '1.0)');
                     ds.backgroundColor = ds.backgroundColor.replace(/0\.\d+\)$/, '0.4)');
                 } else {
-                    // Hanya memudar sedikit (opacity 0.15 - 0.2)
                     ds.borderWidth = 1.5;
                     ds.borderColor = ds.borderColor.replace(/0\.\d+\)$|1\.0\)$/, '0.2)');
                     ds.backgroundColor = ds.backgroundColor.replace(/0\.\d+\)$|0\.4\)$/, '0.03)');
@@ -429,6 +487,10 @@
                 }
             });
             myChart.update('none');
+        }
+
+        function resetHighlight() {
+            if (rawData.length > 0) refreshVisuals();
         }
 
         function downloadPNG() {
@@ -453,7 +515,12 @@
         }
 
         function toggleManualInput() { document.getElementById('manualInputArea').classList.toggle('hidden'); }
-        function processManualData() { processCSV(document.getElementById('manualData').value); toggleManualInput(); }
+        function processManualData() { 
+            const text = document.getElementById('manualData').value;
+            lastDataString = text; // Prevent auto-sync from overwriting manual data immediately
+            processCSV(text); 
+            toggleManualInput(); 
+        }
     </script>
 </body>
 </html>
