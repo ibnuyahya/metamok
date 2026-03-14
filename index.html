@@ -1,4 +1,4 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="id">
 <head>
     <meta charset="UTF-8">
@@ -209,7 +209,7 @@
             <!-- Bottom Control: Toggle View -->
             <div class="mt-8 no-print flex flex-col items-center gap-3 border-t pt-6">
                 <p class="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Pilih Mode Tampilan</p>
-                <div class="toggle-container w-full max-w-md">
+                <div class="toggle-container w-full max-md">
                     <div class="toggle-option" id="mode-ind" onclick="setMode('individual')">Individu</div>
                     <div class="toggle-option active" id="mode-bot" onclick="setMode('both')">Keduanya (Both)</div>
                     <div class="toggle-option" id="mode-cum" onclick="setMode('cumulative')">Kumulatif</div>
@@ -255,7 +255,6 @@
         function setMode(mode) {
             viewMode = mode;
             document.querySelectorAll('.toggle-option').forEach(opt => opt.classList.remove('active'));
-            // Menentukan ID berdasarkan awalan 3 huruf (ind, bot, cum)
             const targetId = `mode-${mode.substring(0, 3)}`;
             const targetEl = document.getElementById(targetId);
             if (targetEl) {
@@ -410,14 +409,23 @@
         function highlightIndividual(index) {
             if (!myChart || viewMode === 'cumulative') return;
             myChart.data.datasets.forEach((ds) => {
-                if (ds.label === `Anggota ${index + 1}`) {
+                const isTarget = ds.label === `Anggota ${index + 1}`;
+                const isCentroid = ds.label.includes('CENTROID');
+
+                if (isTarget) {
                     ds.borderWidth = 6;
-                    ds.borderColor = ds.borderColor.replace('0.5', '1.0');
-                    ds.backgroundColor = ds.backgroundColor.replace('0.1', '0.4');
+                    ds.borderColor = ds.borderColor.replace(/0\.\d+\)$/, '1.0)');
+                    ds.backgroundColor = ds.backgroundColor.replace(/0\.\d+\)$/, '0.4)');
                 } else {
-                    ds.borderWidth = 0.5;
-                    ds.borderColor = ds.borderColor.replace('0.5', '0.05').replace('1.0', '0.05');
-                    ds.backgroundColor = ds.backgroundColor.replace('0.1', '0.01').replace('0.4', '0.01');
+                    // Hanya memudar sedikit (opacity 0.15 - 0.2)
+                    ds.borderWidth = 1.5;
+                    ds.borderColor = ds.borderColor.replace(/0\.\d+\)$|1\.0\)$/, '0.2)');
+                    ds.backgroundColor = ds.backgroundColor.replace(/0\.\d+\)$|0\.4\)$/, '0.03)');
+                    
+                    if (isCentroid) {
+                        ds.borderColor = ds.borderColor.replace(/0\.\d+\)$|1\.0\)$/, '0.1)');
+                        ds.backgroundColor = ds.backgroundColor.replace(/0\.\d+\)$|0\.4\)$/, '0.01)');
+                    }
                 }
             });
             myChart.update('none');
