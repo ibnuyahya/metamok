@@ -1,1 +1,451 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Metacog Engine 2026 - Side-by-Side Dashboard</title>
+    
+    <!-- Libraries -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 
+    <style>
+        :root {
+            --clay-bg: #f0f4f8;
+            --clay-card: #ffffff;
+            --clay-shadow-out: 12px 12px 24px #d1d9e6, -12px -12px 24px #ffffff;
+            --clay-shadow-in: inset 6px 6px 12px #d1d9e6, inset -6px -6px 12px #ffffff;
+            --accent-blue: #a5ccf9;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--clay-bg);
+            color: #4a5568;
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+
+        .clay-card {
+            background: var(--clay-card);
+            border-radius: 2rem;
+            box-shadow: var(--clay-shadow-out);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+        }
+
+        .clay-inset {
+            background: var(--clay-bg);
+            border-radius: 1.25rem;
+            box-shadow: var(--clay-shadow-in);
+            border: none;
+        }
+
+        .clay-button {
+            border-radius: 1rem;
+            box-shadow: 6px 6px 12px #d1d9e6, -6px -6px 12px #ffffff;
+            transition: all 0.2s ease;
+        }
+
+        .clay-button:active {
+            box-shadow: inset 4px 4px 8px rgba(0,0,0,0.1);
+            transform: scale(0.98);
+        }
+
+        .toggle-container {
+            display: flex;
+            background: var(--clay-bg);
+            padding: 4px;
+            border-radius: 1.25rem;
+            box-shadow: var(--clay-shadow-in);
+        }
+        .toggle-option {
+            flex: 1;
+            padding: 8px 10px;
+            text-align: center;
+            font-size: 0.7rem;
+            font-weight: 800;
+            cursor: pointer;
+            border-radius: 1rem;
+            transition: all 0.3s;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+        .toggle-option.active {
+            background: white;
+            color: #3b82f6;
+            box-shadow: 4px 4px 10px rgba(0,0,0,0.05);
+        }
+
+        .member-item {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border-radius: 0.75rem;
+            border: 1px solid transparent;
+        }
+        .member-item:hover {
+            background: white;
+            border-color: #e2e8f0;
+            color: #3b82f6;
+            transform: translateX(4px);
+        }
+
+        .custom-scroll::-webkit-scrollbar { width: 3px; }
+        .custom-scroll::-webkit-scrollbar-track { background: transparent; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e0; border-radius: 10px; }
+
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; padding: 0; }
+            .clay-card { box-shadow: none; border: 1px solid #eee; }
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center">
+
+    <div id="report-content" class="max-w-7xl w-full space-y-6">
+        
+        <!-- Header -->
+        <header class="clay-card p-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-4">
+                <div class="p-3 clay-inset text-blue-500 no-print">
+                    <i data-lucide="brain-circuit" class="w-8 h-8"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight text-gray-800 uppercase">Metacog Engine <span class="text-blue-500">2026</span></h1>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dissertation Data Visualization Workspace</p>
+                </div>
+            </div>
+            <div class="flex gap-2 no-print">
+                <button onclick="downloadPNG()" class="clay-button bg-white text-gray-500 p-2.5 hover:text-blue-500" title="Download PNG">
+                    <i data-lucide="image" class="w-4 h-4"></i>
+                </button>
+                <button onclick="exportPDF()" class="clay-button bg-blue-500 text-white px-5 py-2.5 text-xs font-black flex items-center gap-2 uppercase">
+                    <i data-lucide="file-down" class="w-4 h-4"></i> Export PDF
+                </button>
+            </div>
+        </header>
+
+        <!-- Connection Bar -->
+        <section class="clay-card p-5 no-print">
+            <div class="flex flex-col md:flex-row gap-4">
+                <input type="text" id="sheetUrl" placeholder="Tempel URL GSheet Publik..." 
+                       class="flex-1 px-5 py-3 clay-inset focus:outline-none focus:ring-2 focus:ring-blue-300 text-sm">
+                <button onclick="syncData()" id="btnSync" class="clay-button px-6 py-3 text-white font-bold bg-blue-500 flex items-center justify-center gap-2 text-sm uppercase">
+                    <i data-lucide="refresh-cw" class="w-4 h-4" id="syncIcon"></i> Sinkron
+                </button>
+                <button onclick="toggleManualInput()" class="clay-button px-4 py-3 text-blue-600 bg-white" title="Input Manual">
+                    <i data-lucide="plus" class="w-4 h-4"></i>
+                </button>
+            </div>
+            <div id="manualInputArea" class="hidden mt-4">
+                <textarea id="manualData" rows="2" placeholder="Paste data CSV di sini..." 
+                          class="w-full px-5 py-3 clay-inset focus:outline-none text-xs font-mono"></textarea>
+                <button onclick="processManualData()" class="mt-2 w-full clay-button py-2 text-[10px] font-black text-gray-600 bg-blue-50 uppercase">Proses Data</button>
+            </div>
+        </section>
+
+        <!-- MAIN DASHBOARD CONTAINER -->
+        <div class="clay-card p-8 flex flex-col min-h-[700px]">
+            
+            <!-- Dashboard Stats Header -->
+            <div class="grid grid-cols-4 gap-4 mb-8">
+                <div class="clay-inset p-4 text-center">
+                    <p class="text-[8px] font-black text-gray-400 uppercase mb-1">Total Responden</p>
+                    <h3 id="totalResponden" class="text-2xl font-black text-blue-600">0</h3>
+                </div>
+                <div class="clay-inset p-4 text-center">
+                    <p class="text-[8px] font-black text-blue-400 uppercase mb-1">Expert</p>
+                    <h3 id="countExpert" class="text-2xl font-black text-blue-400">0</h3>
+                </div>
+                <div class="clay-inset p-4 text-center">
+                    <p class="text-[8px] font-black text-emerald-400 uppercase mb-1">Learner</p>
+                    <h3 id="countLearner" class="text-2xl font-black text-emerald-400">0</h3>
+                </div>
+                <div class="clay-inset p-4 text-center">
+                    <p class="text-[8px] font-black text-rose-400 uppercase mb-1">Struggler</p>
+                    <h3 id="countStruggler" class="text-2xl font-black text-rose-400">0</h3>
+                </div>
+            </div>
+
+            <!-- UNIFIED WORKSPACE: Side-by-Side Radar & Member List -->
+            <div class="flex flex-col lg:flex-row gap-8 flex-1">
+                
+                <!-- Radar Section (Left - 75%) -->
+                <div class="lg:w-3/4 flex flex-col">
+                    <div class="flex justify-between items-center mb-4 px-2">
+                        <h4 class="text-xs font-black text-gray-700 uppercase tracking-widest">Radar Visualization</h4>
+                        <span class="text-[9px] font-bold text-gray-400 uppercase">Scale 0 - 4</span>
+                    </div>
+                    <div class="flex-1 clay-inset p-6 relative flex items-center justify-center min-h-[450px]">
+                        <div id="placeholder" class="text-gray-300 flex flex-col items-center gap-3 no-print">
+                             <i data-lucide="radar" class="w-12 h-12 opacity-10"></i>
+                             <p class="font-bold uppercase tracking-widest text-[9px] opacity-30">Menunggu Data...</p>
+                        </div>
+                        <canvas id="radarChart" class="hidden"></canvas>
+                    </div>
+                </div>
+
+                <!-- Responden List Section (Right - 25%) -->
+                <div class="lg:w-1/4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-4 px-2">
+                        <i data-lucide="users" class="w-3 h-3 text-blue-500"></i>
+                        <h4 class="text-xs font-black text-gray-700 uppercase tracking-widest">Responden</h4>
+                    </div>
+                    <div id="memberList" class="flex-1 clay-inset p-3 overflow-y-auto max-h-[450px] custom-scroll space-y-2">
+                        <!-- Members via JS -->
+                    </div>
+                    <div class="mt-4 p-4 clay-inset bg-blue-50/30 text-[8px] text-gray-500 font-bold leading-relaxed no-print">
+                        <i data-lucide="mouse-pointer-2" class="w-3 h-3 inline mr-1 text-blue-400"></i>
+                        Arahkan mouse ke nama untuk menyorot profil di radar.
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Bottom Control: Toggle View -->
+            <div class="mt-8 no-print flex flex-col items-center gap-3 border-t pt-6">
+                <p class="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Pilih Mode Tampilan</p>
+                <div class="toggle-container w-full max-w-md">
+                    <div class="toggle-option" id="mode-ind" onclick="setMode('individual')">Individu</div>
+                    <div class="toggle-option active" id="mode-bot" onclick="setMode('both')">Keduanya (Both)</div>
+                    <div class="toggle-option" id="mode-cum" onclick="setMode('cumulative')">Kumulatif</div>
+                </div>
+            </div>
+
+        </div>
+
+        <footer class="text-center py-4 text-gray-400 text-[8px] font-bold tracking-widest uppercase">
+            &copy; 2026 Metacog Engine &bull; Dissertation Support Framework
+        </footer>
+    </div>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+
+        const dimensions = [
+            "I understand the task", "I know how to do this task",
+            "This task is interesting", "My feelings influence",
+            "I feel capable (Self)", "My group is capable"
+        ];
+
+        const clusterColors = {
+            expert: { border: '#3b82f6', bg: 'rgba(59, 130, 246, 0.3)' },
+            learner: { border: '#10b981', bg: 'rgba(16, 185, 129, 0.3)' },
+            struggler: { border: '#f43f5e', bg: 'rgba(244, 63, 94, 0.3)' }
+        };
+
+        const scoreMap = {
+            "sangat": 4, "tinggi": 4, "setuju": 4, "paham": 4, "biasa": 4,
+            "cukup": 3, "sedang": 3, "paham sedikit": 3,
+            "sedikit": 2, "jarang": 2, "rendah": 2,
+            "tidak": 1, "none": 0
+        };
+
+        let myChart = null;
+        let clusterData = { expert: [], learner: [], struggler: [] };
+        let rawData = [];
+        let viewMode = 'both';
+
+        window.onload = () => lucide.createIcons();
+
+        function setMode(mode) {
+            viewMode = mode;
+            document.querySelectorAll('.toggle-option').forEach(opt => opt.classList.remove('active'));
+            // Menentukan ID berdasarkan awalan 3 huruf (ind, bot, cum)
+            const targetId = `mode-${mode.substring(0, 3)}`;
+            const targetEl = document.getElementById(targetId);
+            if (targetEl) {
+                targetEl.classList.add('active');
+            }
+            if (rawData.length > 0) refreshVisuals();
+        }
+
+        async function syncData() {
+            const url = document.getElementById('sheetUrl').value;
+            if (!url) return alert("Masukkan URL Google Sheets dulu ya!");
+            document.getElementById('syncIcon').classList.add('animate-spin');
+            try {
+                let csvUrl = url.includes('/edit') ? url.replace(/\/edit.*$/, '/export?format=csv') : url;
+                if (!csvUrl.includes('format=csv')) csvUrl += (csvUrl.includes('?') ? '&' : '?') + 'format=csv';
+                const response = await fetch(csvUrl);
+                const text = await response.text();
+                processCSV(text);
+            } catch (err) {
+                alert("Gagal sinkron. Coba pakai data manual.");
+            } finally {
+                document.getElementById('syncIcon').classList.remove('animate-spin');
+            }
+        }
+
+        function processCSV(text) {
+            const rows = text.trim().split('\n').slice(1);
+            rawData = rows.map(row => {
+                const cols = row.split(',').map(c => c.replace(/"/g, '').trim());
+                return cols.slice(1, 7).map(val => scoreTextToNumber(val));
+            }).filter(r => r.length === 6 && !r.includes(NaN));
+
+            if (rawData.length > 0) {
+                document.getElementById('placeholder').classList.add('hidden');
+                document.getElementById('radarChart').classList.remove('hidden');
+                runClustering();
+            }
+        }
+
+        function scoreTextToNumber(text) {
+            if (!isNaN(text) && text !== "") return parseFloat(text);
+            let lower = text.toLowerCase();
+            for (let key in scoreMap) { if (lower.includes(key)) return scoreMap[key]; }
+            return 2;
+        }
+
+        function runClustering() {
+            clusterData = { expert: [], learner: [], struggler: [] };
+            rawData.forEach(row => {
+                const avg = row.reduce((a, b) => a + b, 0) / row.length;
+                if (avg >= 3.2) clusterData.expert.push(row);
+                else if (avg >= 2.2) clusterData.learner.push(row);
+                else clusterData.struggler.push(row);
+            });
+            refreshVisuals();
+        }
+
+        function refreshVisuals() {
+            const datasets = [];
+            
+            if (viewMode === 'individual' || viewMode === 'both') {
+                rawData.forEach((row, i) => {
+                    const hue = (210 + (i * 137.5)) % 360;
+                    datasets.push({
+                        label: `Anggota ${i+1}`,
+                        data: row,
+                        borderColor: `hsla(${hue}, 70%, 55%, 0.5)`,
+                        backgroundColor: `hsla(${hue}, 70%, 55%, 0.1)`,
+                        borderWidth: 2,
+                        pointRadius: 3,
+                        fill: true,
+                        order: 10
+                    });
+                });
+            }
+
+            if (viewMode === 'cumulative' || viewMode === 'both') {
+                if (clusterData.expert.length > 0) datasets.push(createCentroidDS('EXPERT', getCentroid(clusterData.expert), clusterColors.expert));
+                if (clusterData.learner.length > 0) datasets.push(createCentroidDS('LEARNER', getCentroid(clusterData.learner), clusterColors.learner));
+                if (clusterData.struggler.length > 0) datasets.push(createCentroidDS('STRUGGLER', getCentroid(clusterData.struggler), clusterColors.struggler));
+            }
+
+            drawChart(datasets);
+            updateUI();
+        }
+
+        function createCentroidDS(label, data, color) {
+            return {
+                label: `${label} (CENTROID)`,
+                data: data,
+                borderColor: color.border,
+                backgroundColor: color.bg,
+                borderWidth: 6,
+                pointRadius: 6,
+                pointBackgroundColor: '#fff',
+                fill: true,
+                order: 1
+            };
+        }
+
+        function getCentroid(arr) {
+            const sums = new Array(6).fill(0);
+            arr.forEach(row => row.forEach((v, i) => sums[i] += v));
+            return sums.map(s => (s / arr.length).toFixed(2));
+        }
+
+        function drawChart(datasets) {
+            const ctx = document.getElementById('radarChart').getContext('2d');
+            if (myChart) myChart.destroy();
+            myChart = new Chart(ctx, {
+                type: 'radar',
+                data: { labels: dimensions, datasets: datasets },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            min: 0, max: 4,
+                            ticks: { display: false, stepSize: 1 },
+                            grid: { color: 'rgba(0,0,0,0.06)' },
+                            pointLabels: { font: { family: 'Plus Jakarta Sans', size: 9, weight: '800' }, color: '#64748b' }
+                        }
+                    },
+                    plugins: { 
+                        legend: { 
+                            display: true, position: 'bottom',
+                            labels: { filter: (item) => item.text.includes('CENTROID'), font: { size: 10, weight: 'bold' } } 
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateUI() {
+            document.getElementById('totalResponden').innerText = rawData.length;
+            document.getElementById('countExpert').innerText = clusterData.expert.length;
+            document.getElementById('countLearner').innerText = clusterData.learner.length;
+            document.getElementById('countStruggler').innerText = clusterData.struggler.length;
+            
+            const list = document.getElementById('memberList');
+            list.innerHTML = '';
+            rawData.forEach((_, i) => {
+                const div = document.createElement('div');
+                div.className = 'member-item p-3 clay-inset flex items-center justify-between text-[10px] font-bold';
+                div.innerHTML = `<span>Anggota ${i+1}</span> <i data-lucide="scan" class="w-3 h-3 opacity-20"></i>`;
+                div.onmouseenter = () => highlightIndividual(i);
+                div.onmouseleave = () => refreshVisuals();
+                list.appendChild(div);
+            });
+            lucide.createIcons();
+        }
+
+        function highlightIndividual(index) {
+            if (!myChart || viewMode === 'cumulative') return;
+            myChart.data.datasets.forEach((ds) => {
+                if (ds.label === `Anggota ${index + 1}`) {
+                    ds.borderWidth = 6;
+                    ds.borderColor = ds.borderColor.replace('0.5', '1.0');
+                    ds.backgroundColor = ds.backgroundColor.replace('0.1', '0.4');
+                } else {
+                    ds.borderWidth = 0.5;
+                    ds.borderColor = ds.borderColor.replace('0.5', '0.05').replace('1.0', '0.05');
+                    ds.backgroundColor = ds.backgroundColor.replace('0.1', '0.01').replace('0.4', '0.01');
+                }
+            });
+            myChart.update('none');
+        }
+
+        function downloadPNG() {
+            const link = document.createElement('a');
+            link.download = 'radar-metacog-pro.png';
+            link.href = myChart.toBase64Image();
+            link.click();
+        }
+
+        async function exportPDF() {
+            const btn = event.currentTarget;
+            btn.innerHTML = "Processing...";
+            const canvas = await html2canvas(document.getElementById('report-content'), { scale: 2 });
+            const pdf = new jsPDF('p', 'mm', 'a4');
+            const imgData = canvas.toDataURL('image/png');
+            const imgWidth = pdf.internal.pageSize.getWidth() - 20;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+            pdf.addImage(imgData, 'PNG', 10, 10, imgWidth, imgHeight);
+            pdf.save("Metacog_Engine_2026.pdf");
+            btn.innerHTML = '<i data-lucide="file-down" class="w-4 h-4"></i> Export PDF';
+            lucide.createIcons();
+        }
+
+        function toggleManualInput() { document.getElementById('manualInputArea').classList.toggle('hidden'); }
+        function processManualData() { processCSV(document.getElementById('manualData').value); toggleManualInput(); }
+    </script>
+</body>
+</html>
